@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Motion Recorder</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            background-color: #000;
+            font-family: sans-serif;
+            color: white;
+        }
+
+        #gameCanvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #ui {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+
+        #drop_zone {
+            width: 400px;
+            height: 100px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            padding-top: 30px;
+            margin-top: 10px;
+            background-color: #222;
+            color: #ccc;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #statusMessage {
+            margin-top: 10px;
+            color: lightgreen;
+        }
+
+        #sizeCounter {
+            margin-top: 5px;
+            font-size: 14px;
+            color: #ccc;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui">
+        <button onclick="saveMotion()">Save Motion</button>
+        <div id="drop_zone">
+            Drag and drop saved motion file here to load
+        </div>
+        <div id="statusMessage"></div>
+        <div id="sizeCounter">Size: 0 bytes</div>
+    </div>
+
+    <script>
+
+        // Init variables and resources
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let data = [];
+        let sp = 0;
+        let recording = false;
+        let isPlaying = false;
+
+        let mouseX = 0;
+        let mouseY = 0;
+        let recordingLength = 0;
+        let saveCounter = 1;
+
+        // Helper function
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function updateSizeCounter() {
+            const jsonString = JSON.stringify(data, null, 2);
+            const bytes = new Blob([jsonString]).size;
+            document.getElementById('sizeCounter').innerText = `Size: ${bytes} bytes`;
+        }
+
+        // Handle pointer events (mouse, pen, touch)
+        function startRecording(event) {
+            recording = true;
+            isPlaying = false;
+            data = [];
+            recordingLength = 0;
+            mouseX = event.clientX || event.touches[0].clientX;
+            mouseY = event.clientY || event.touches[0].clientY;
+            document.getElementById('sizeCounter').innerText = `Size: 0 bytes`;
+        }
+
+        function stopRecording() {
+            recording = false;
+            isPlaying = true;
+            recordingLength = data.length;
+            sp = 0;
+        }
+
+        function updatePosition(event) {
+            mouseX = event.clientX || event.touches[0].clientX;
+            mouseY = event.clientY || event.touches[0].clientY;
+        }
+
+        // Pointer events to handle mouse, pen and touch
+        canvas.addEventListener('pointerdown', function(event) {
+            if (event.pointerType === 'mouse' || event.pointerType === 'pen' || event.pointerType === 'touch') {
+                startRecording(event);
+            }
+        });
+
+        canvas.addEventListener('pointerup', function(event) {
+            if (event.pointerType === 'mouse' || event.pointerType === 'pen' || event.pointerType === 'touch') {
+                stopRecording();
+            }
+        });
+
+        canvas.addEventListener('pointermove', function(event) {
+            if (event.pointerType === 'mouse' || event.pointerType === 'pen' || event.pointerType === 'touch') {
+                updatePosition(event);
+            }
+        });
+
+        // Touch events to handle touch input
+        canvas.addEventListener('touchstart', function(event) {
+            event.preventDefault(); // Prevent scrolling
+            startRecording(event);
+        });
+
+        canvas.addEventListener('touchend', function(event) {
+            event.preventDefault(); // Prevent scrolling
+            stopRecording();
+        });
+
+        canvas.addEventListener('touchmove', function(event) {
+            event.preventDefault(); // Prevent scrolling
+            updatePosition(event);
+        });
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (recording) {
+                data.push({ x: mouseX, y: mouseY });
+                updateSizeCounter();
+                ctx.fillStyle = 'red';
+                ctx.fillRect(mouseX - 16, mouseY - 16, 32, 32);
+            } else if (isPlaying) {
+                if (sp < recordingLength) {
+                    const p = data[sp];
+                    ctx.fillStyle = 'green';
+                    ctx.fillRect(p.x - 16, p.y - 16, 32, 32);
+                    sp++;
+                } else {
+                    sp = 0;
+                }
+            } else {
+                ctx.fillStyle = 'white';
+                ctx.fillText("Press and hold to record, release to playback", 20, 20);
+            }
+        }
+
+        function saveMotion() {
+            const motionData = JSON.stringify(data, null, 2);
+            const blob = new Blob([motionData], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const filename = `motion_data_${saveCounter++}.json`;
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function loadMotionFromFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                try {
+                    const loadedData = JSON.parse(event.target.result);
+                    data = loadedData;
+                    recordingLength = data.length;
+                    sp = 0;
+                    isPlaying = true;
+                    document.getElementById('statusMessage').innerText = 'Motion data loaded successfully.';
+                    updateSizeCounter();
+                } catch (e) {
+                    document.getElementById('statusMessage').innerText = 'Failed to load motion data.';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        const dropZone = document.getElementById('drop_zone');
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '#333';
+        });
+
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '#222';
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.style.backgroundColor = '#222';
+            const file = e.dataTransfer.files[0];
+            loadMotionFromFile(file);
+        });
+
+        // Main loop
+        function mainLoop() {
+            draw(); // Do this once per display refresh 
+            requestAnimationFrame(mainLoop); // Re-trig itself, so basically we have a retro-style raster-interrupt loop now
+        }
+        
+        // We need to trig the loop manually the first time
+        mainLoop();
+     
+    </script>
+</body>
+</html>
