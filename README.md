@@ -31,6 +31,9 @@ Recorded motions are stored as an array of `{ x, y }` objects:
 ]
 ```
 
+## Live demo:
+[https://mrsoderman.github.io/Record-Motion/](https://mrsoderman.github.io/Record-Motion/)
+
 ## Resources
 
 These are the key Web APIs used in this project, which you might find helpful:
